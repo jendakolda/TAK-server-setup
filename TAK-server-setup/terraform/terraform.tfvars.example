@@ -1,0 +1,16 @@
+# Example terraform.tfvars file
+# Copy this to terraform.tfvars and fill in your actual values
+
+# Required OCI Configuration
+tenancy_ocid     = "ocid1.tenancy.oc1..aaaaaaaa..."
+user_ocid        = "ocid1.user.oc1..aaaaaaaa..."
+fingerprint      = "12:34:56:78:90:ab:cd:ef:..."
+private_key_path = "/path/to/your/oci_api_key.pem"
+compartment_ocid = "ocid1.compartment.oc1..aaaaaaaa..."
+
+# Optional Overrides (these have defaults in variables.tf)
+# region = "eu-frankfurt-1"
+# instance_shape = "VM.Standard.E2.1.Micro"
+# instance_name = "opentakserver"
+# vcn_cidr = "10.0.0.0/16"
+# subnet_cidr = "10.0.1.0/24"

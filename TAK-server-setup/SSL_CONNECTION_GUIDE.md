@@ -18,7 +18,7 @@ Your OpenTAK Server now supports **both TCP and SSL connections** for ATAK devic
 
 - **Public IP**: 92.5.109.1
 - **Web UI**: http://92.5.109.1/
-- **Credentials**: admin / admin123
+- **Credentials**: xxxx
 
 ### Available Ports
 

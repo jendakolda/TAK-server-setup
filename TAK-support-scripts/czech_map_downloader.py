@@ -24,9 +24,9 @@ class CzechMapDownloader:
         
     def get_tile_bounds_czech_republic(self, zoom_level=12):
         """Get tile bounds for Czech Republic at given zoom level"""
-        # Czech Republic approximate bounds in WGS84
-        west, south = 12.0, 48.5   # Southwest corner
-        east, north = 19.0, 51.1   # Northeast corner
+        # Czech Republic official bounds in WGS84 (from ČÚZK)
+        west, south = 12.09, 48.55   # Southwest corner
+        east, north = 18.86, 51.06   # Northeast corner
         
         # Convert to tile coordinates
         ul_tile = mercantile.tile(west, north, zoom_level)
@@ -104,7 +104,7 @@ class CzechMapDownloader:
             ('version', '1.0'),
             ('description', description),
             ('format', 'png'),
-            ('bounds', '12.0,48.5,19.0,51.1'),  # Czech Republic bounds
+            ('bounds', '12.09,48.55,18.86,51.06'),  # Czech Republic official bounds
             ('minzoom', '8'),
             ('maxzoom', '16')
         ]

@@ -24,12 +24,13 @@ class CzechElevationDownloader:
     def download_elevation_tile(self, x, y, z, service="3D/dmr5g"):
         """Download elevation data tile from DMR service"""
         bbox = mercantile.bounds(x, y, z)
-        
+
         # Request elevation data in GeoTIFF format
+        # Using Web Mercator (EPSG:3857) for consistency with map downloader
         url = (f"{self.base_url}/{service}/ImageServer/exportImage?"
                f"bbox={bbox.west},{bbox.south},{bbox.east},{bbox.north}&"
                f"bboxSR=4326&"
-               f"imageSR=4326&"
+               f"imageSR=3857&"
                f"size=256,256&"
                f"format=tiff&"
                f"pixelType=F32&"
@@ -189,7 +190,7 @@ class CzechElevationDownloader:
                 ('version', '1.0'),
                 ('description', 'Elevation hillshade overlay for Czech Republic'),
                 ('format', 'png'),
-                ('bounds', '12.0,48.5,19.0,51.1'),
+                ('bounds', '12.09,48.55,18.86,51.06'),
                 ('minzoom', str(min(zoom_levels))),
                 ('maxzoom', str(max(zoom_levels)))
             ]
@@ -209,9 +210,9 @@ class CzechElevationDownloader:
         skipped_tiles = 0
 
         for zoom in zoom_levels:
-            # Czech Republic bounds
-            west, south = 12.0, 48.5
-            east, north = 19.0, 51.1
+            # Czech Republic official bounds in WGS84 (from ČÚZK)
+            west, south = 12.09, 48.55
+            east, north = 18.86, 51.06
 
             ul_tile = mercantile.tile(west, north, zoom)
             lr_tile = mercantile.tile(east, south, zoom)
@@ -231,7 +232,7 @@ class CzechElevationDownloader:
                         skipped_tiles += 1
                         continue
 
-                    # Download elevation data
+                    # Download elevation data using XYZ coordinates (y, not tms_y)
                     elevation_data = self.download_elevation_tile(x, y, zoom)
 
                     if elevation_data:

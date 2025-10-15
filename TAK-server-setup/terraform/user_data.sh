@@ -206,29 +206,6 @@ server {
         proxy_set_header X-Ssl-Cert $ssl_client_escaped_cert;
     }
 }
-
-server {
-    listen 8446 ssl;
-    listen [::]:8446 ssl;
-    server_name _;
-
-    ssl_certificate /home/opentakserver/ots/ca/certs/opentakserver/opentakserver.pem;
-    ssl_certificate_key /home/opentakserver/ots/ca/certs/opentakserver/opentakserver.nopass.key;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_verify_client optional;
-    ssl_client_certificate /home/opentakserver/ots/ca/ca.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:8081;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Ssl-Cert $ssl_client_escaped_cert;
-    }
-}
 EOF
 
 # Enable Nginx site
@@ -329,10 +306,43 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-# Enable and start EUD handler
+# Enable and start TCP EUD handler
 systemctl daemon-reload
 systemctl enable eud_handler
 systemctl start eud_handler
+
+# Wait for TCP handler to stabilize
+sleep 5
+
+# Create EUD handler systemd service for SSL streaming
+echo "Creating EUD handler service for SSL streaming..."
+cat > /etc/systemd/system/eud_handler_ssl.service << 'EOF'
+[Unit]
+Description=OpenTAK Server EUD Handler (SSL)
+After=network.target rabbitmq-server.service opentakserver.service eud_handler.service
+Requires=rabbitmq-server.service opentakserver.service
+
+[Service]
+Type=simple
+User=opentakserver
+Group=opentakserver
+WorkingDirectory=/home/opentakserver/OpenTAKServer
+Environment="PATH=/home/opentakserver/OpenTAKServer/opentakserver_venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/opentakserver/OpenTAKServer/opentakserver_venv/bin/python /home/opentakserver/OpenTAKServer/opentakserver/eud_handler/eud_handler.py --ssl
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start SSL EUD handler
+systemctl daemon-reload
+systemctl enable eud_handler_ssl
+systemctl start eud_handler_ssl
+
+# Wait for SSL handler to stabilize
+sleep 5
 
 # Create status file
 PUBLIC_IP=$(curl -s http://169.254.169.254/opc/v1/instance/metadata/public-ip 2>/dev/null || echo 'YOUR_PUBLIC_IP')
@@ -357,15 +367,25 @@ For TCP (simple, no certificates):
 - Protocol: TCP
 - Use Auth: OFF
 
+For SSL (secure, with certificates):
+- Server Address: ${PUBLIC_IP}
+- Port: 8446
+- Protocol: SSL
+- Download Truststore: http://${PUBLIC_IP}/api/truststore
+- Truststore Password: atakatak
+- Or use QR Code from Web UI for automatic setup
+
 Service Status:
 - Backend: systemctl status opentakserver
 - TCP Streaming: systemctl status eud_handler
+- SSL Streaming: systemctl status eud_handler_ssl
 - Nginx: systemctl status nginx
 
 Logs:
 - Installation: /var/log/user-data.log
 - OpenTAK: journalctl -u opentakserver -f
-- EUD Handler: journalctl -u eud_handler -f
+- TCP EUD Handler: journalctl -u eud_handler -f
+- SSL EUD Handler: journalctl -u eud_handler_ssl -f
 - Nginx: /var/log/nginx/error.log
 EOF
 
@@ -375,7 +395,11 @@ echo "========================================"
 echo "OpenTAK Server installation completed!"
 echo "Web Interface: http://${PUBLIC_IP}/"
 echo "TAK TCP Streaming: ${PUBLIC_IP}:8089"
+echo "TAK SSL Streaming: ${PUBLIC_IP}:8446"
 echo "========================================"
-echo "ATAK Connection: Use TCP on port 8089"
+echo "ATAK Connection Options:"
+echo "  - TCP: Port 8089 (no certificates)"
+echo "  - SSL: Port 8446 (with certificates)"
+echo "  - Use QR Code from Web UI for easy SSL setup"
 echo "========================================"
 echo "User data script execution completed successfully at $(date)!"

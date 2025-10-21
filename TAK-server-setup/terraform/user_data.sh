@@ -133,6 +133,9 @@ server {
     listen [::]:80;
     server_name _;
 
+    # Allow larger file uploads (for APK files, data packages, etc.)
+    client_max_body_size 100M;
+
     root /home/opentakserver/OpenTAKServer-UI/dist;
     index index.html;
 
@@ -174,6 +177,9 @@ server {
     listen [::]:8080;
     server_name _;
 
+    # Allow larger file uploads
+    client_max_body_size 100M;
+
     location / {
         proxy_pass http://127.0.0.1:8081;
         proxy_http_version 1.1;
@@ -188,6 +194,9 @@ server {
     listen 8443 ssl;
     listen [::]:8443 ssl;
     server_name _;
+
+    # Allow larger file uploads
+    client_max_body_size 100M;
 
     ssl_certificate /home/opentakserver/ots/ca/certs/opentakserver/opentakserver.pem;
     ssl_certificate_key /home/opentakserver/ots/ca/certs/opentakserver/opentakserver.nopass.key;
@@ -344,6 +353,36 @@ systemctl start eud_handler_ssl
 # Wait for SSL handler to stabilize
 sleep 5
 
+# Create CoT Parser systemd service (CRITICAL - Required for markers to appear on map!)
+echo "Creating CoT Parser service..."
+cat > /etc/systemd/system/cot_parser.service << 'EOF'
+[Unit]
+Description=OpenTAK Server CoT Parser
+After=network.target rabbitmq-server.service opentakserver.service
+Requires=rabbitmq-server.service opentakserver.service
+
+[Service]
+Type=simple
+User=opentakserver
+Group=opentakserver
+WorkingDirectory=/home/opentakserver/OpenTAKServer
+Environment="PATH=/home/opentakserver/OpenTAKServer/opentakserver_venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/opentakserver/OpenTAKServer/opentakserver_venv/bin/python /home/opentakserver/OpenTAKServer/opentakserver/cot_parser/cot_parser.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start CoT Parser
+systemctl daemon-reload
+systemctl enable cot_parser
+systemctl start cot_parser
+
+# Wait for CoT parser to stabilize
+sleep 5
+
 # Create status file
 PUBLIC_IP=$(curl -s http://169.254.169.254/opc/v1/instance/metadata/public-ip 2>/dev/null || echo 'YOUR_PUBLIC_IP')
 
@@ -379,6 +418,7 @@ Service Status:
 - Backend: systemctl status opentakserver
 - TCP Streaming: systemctl status eud_handler
 - SSL Streaming: systemctl status eud_handler_ssl
+- CoT Parser: systemctl status cot_parser
 - Nginx: systemctl status nginx
 
 Logs:
@@ -386,6 +426,7 @@ Logs:
 - OpenTAK: journalctl -u opentakserver -f
 - TCP EUD Handler: journalctl -u eud_handler -f
 - SSL EUD Handler: journalctl -u eud_handler_ssl -f
+- CoT Parser: journalctl -u cot_parser -f
 - Nginx: /var/log/nginx/error.log
 EOF
 

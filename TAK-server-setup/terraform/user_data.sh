@@ -133,6 +133,9 @@ server {
     listen [::]:80;
     server_name _;
 
+    # Allow larger file uploads (for APK files, data packages, etc.)
+    client_max_body_size 100M;
+
     root /home/opentakserver/OpenTAKServer-UI/dist;
     index index.html;
 
@@ -174,6 +177,9 @@ server {
     listen [::]:8080;
     server_name _;
 
+    # Allow larger file uploads
+    client_max_body_size 100M;
+
     location / {
         proxy_pass http://127.0.0.1:8081;
         proxy_http_version 1.1;
@@ -188,6 +194,9 @@ server {
     listen 8443 ssl;
     listen [::]:8443 ssl;
     server_name _;
+
+    # Allow larger file uploads
+    client_max_body_size 100M;
 
     ssl_certificate /home/opentakserver/ots/ca/certs/opentakserver/opentakserver.pem;
     ssl_certificate_key /home/opentakserver/ots/ca/certs/opentakserver/opentakserver.nopass.key;

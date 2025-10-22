@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ATAK Map Source Configuration for Czech Aerial Imagery (Ortophoto)
+
+  This provides high-resolution aerial photography of Czech Republic.
+  Great for detailed terrain analysis and navigation.
+
+  To use:
+  1. Replace YOUR_SERVER_IP with your actual server IP address
+  2. Copy this file to your Android device
+  3. In ATAK, go to Settings > Import > Import Map Source
+  4. Select this XML file
+-->
+<customMapSource>
+    <name>Czech Ortophoto</name>
+    <provider>ČÚZK (via OpenTAK Server)</provider>
+    <tileType>1</tileType>
+    <!-- Base URL - Uses Nginx proxy on port 80 -->
+    <url>http://92.5.109.1/tiles/ortophoto/{z}/{x}/{y}.png</url>
+    <backgroundColor>#00000000</backgroundColor>
+    <minZoom>6</minZoom>
+    <maxZoom>20</maxZoom>
+    <tileSize>256</tileSize>
+
+    <!-- Czech Republic bounding box -->
+    <north>51.06</north>
+    <south>48.55</south>
+    <east>18.86</east>
+    <west>12.09</west>
+
+    <!-- Coordinate system -->
+    <srid>4326</srid>
+
+    <!-- Cache settings -->
+    <offlineCache>true</offlineCache>
+    <cachePath>ATAK/cache/czech_ortophoto</cachePath>
+</customMapSource>

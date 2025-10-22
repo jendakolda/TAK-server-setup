@@ -80,6 +80,16 @@ resource "oci_core_security_list" "tak_security_list" {
     }
   }
 
+  # CUZK Tile Server port (Czech maps for ATAK)
+  ingress_security_rules {
+    protocol = "6" # TCP
+    source   = "0.0.0.0/0"
+    tcp_options {
+      min = 8088
+      max = 8088
+    }
+  }
+
   # MediaMTX RTSP port (for video streaming)
   ingress_security_rules {
     protocol = "6" # TCP

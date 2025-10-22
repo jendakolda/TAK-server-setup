@@ -18,14 +18,17 @@ This repository contains everything needed to deploy a complete OpenTAK Server o
 - ✅ **Admin User** - Automatically created (admin/admin123)
 - ✅ **Nginx Proxy** - Correctly configured for Socket.IO
 - ✅ **All TAK Ports** - 8089, 8443, 8080, 8446, etc.
+- ✅ **Czech Maps** - On-demand CUZK tile server for ATAK
 - ✅ **Free Tier** - Runs on Oracle Cloud free tier ($0/month)
 - ✅ **Auto-Start** - Services start automatically on boot
 
 ### Documentation
 - ✅ **QUICK_START.md** - Deploy in 5 steps
-- ✅ **DEPLOYMENT_GUIDE.md** - Complete detailed guide
-- ✅ **FINAL_SUCCESS.md** - Current working deployment info
-- ✅ **README.md** - Original project documentation
+- ✅ **docs/CUZK_TILE_SERVER.md** - Czech map integration
+- ✅ **docs/SSL_CONNECTION.md** - SSL/TLS setup guide
+- ✅ **docs/PLUGIN_UPDATE.md** - ATAK plugin configuration
+- ✅ **atak-config/README.md** - ATAK map source configs
+- ✅ **terraform/README.md** - Terraform-specific docs
 
 ## Quick Deploy
 
@@ -59,10 +62,22 @@ TAK-server-setup/
 │   ├── security.tf         # Security lists & rules
 │   ├── outputs.tf          # Output values
 │   ├── user_data.sh        # Installation script
-│   └── terraform.tfvars    # Your credentials (create this)
+│   ├── terraform.tfvars    # Your credentials (create this)
+│   └── README.md           # Terraform-specific docs
+├── atak-config/            # ATAK map source XML files
+│   ├── czech_topo.xml      # Topographic maps
+│   ├── czech_contours.xml  # Elevation contours
+│   ├── czech_ortophoto.xml # Aerial imagery
+│   ├── czech_basemap.xml   # Base map
+│   └── README.md           # ATAK configuration guide
+├── docs/                   # Detailed guides
+│   ├── CUZK_TILE_SERVER.md # Czech map integration
+│   ├── SSL_CONNECTION.md   # SSL/TLS setup
+│   └── PLUGIN_UPDATE.md    # ATAK plugin config
+├── systemd/                # System service files
+│   └── cuzk_tile_server.service
 ├── QUICK_START.md          # 5-step deployment guide
-├── DEPLOYMENT_GUIDE.md     # Complete guide
-├── FINAL_SUCCESS.md        # Success report
+├── WARP.md                 # AI assistant guidance
 └── README.md               # This file
 ```
 
@@ -144,12 +159,24 @@ The deployment uses:
 - SSH key pair
 - 15-20 minutes for deployment
 
+## Czech Maps Integration
+
+This deployment includes an on-demand tile server for Czech Republic maps from ČÚZK:
+
+- **Tile Server**: Automatically installed and running on port 8088
+- **Nginx Proxy**: Maps accessible via `http://YOUR_IP/tiles/`
+- **Available Maps**: Topographic, contours, aerial imagery, base map
+- **ATAK Integration**: Import XML files from `atak-config/` folder
+- **Documentation**: See `docs/CUZK_TILE_SERVER.md` for complete guide
+
+**Quick Test**: `curl http://YOUR_IP/tiles/health`
+
 ## Support
 
 For issues:
-1. Check `DEPLOYMENT_GUIDE.md` for troubleshooting
-2. Review logs: `/var/log/user-data.log`
-3. Check service status: `systemctl status opentakserver`
+1. Review logs: `/var/log/user-data.log`
+2. Check service status: `systemctl status opentakserver`
+3. Consult guides in `docs/` folder
 4. OpenTAK Server issues: https://github.com/brian7704/OpenTAKServer/issues
 
 ## Technical Details
@@ -161,7 +188,8 @@ Internet
    ├─ Port 80 (HTTP) ──> Nginx ──> React Web UI
    │                       │
    │                       ├─ /api ──> Backend (Flask)
-   │                       └─ /socket.io ──> Backend (Socket.IO)
+   │                       ├─ /socket.io ──> Backend (Socket.IO)
+   │                       └─ /tiles/ ──> Tile Server (Czech Maps)
    │
    ├─ Port 8089 (TCP) ──> Backend (TAK)
    └─ Port 8443 (SSL) ──> Backend (TAK SSL)

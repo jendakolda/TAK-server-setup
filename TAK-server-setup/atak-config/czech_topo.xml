@@ -15,7 +15,7 @@
     <provider>ČÚZK (via OpenTAK Server)</provider>
     <tileType>1</tileType>
     <!-- Base URL - Uses Nginx proxy on port 80 -->
-    <url>http://92.5.109.1/tiles/topo/{z}/{x}/{y}.png</url>
+    <url>http://YOUR_SERVER_IP/tiles/topo/{z}/{x}/{y}.png</url>
     <backgroundColor>#00000000</backgroundColor>
     <minZoom>6</minZoom>
     <maxZoom>18</maxZoom>

@@ -35,7 +35,7 @@ echo ""
 
 # Check database
 echo "3. Checking Database..."
-cd /home/opentakserver/OpenTAKServer
+cd /home/opentakserver/OpenTAKServer || { echo "  ✗ Failed to change to OpenTAKServer directory"; exit 1; }
 sudo -u opentakserver bash -c "source opentakserver_venv/bin/activate && python << 'EOF'
 from opentakserver.app import create_app, db
 from opentakserver.models.EUD import EUD

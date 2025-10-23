@@ -1,0 +1,35 @@
+[Unit]
+Description=CUZK Tile Server for ATAK
+Documentation=https://github.com/jendakolda/TAK
+After=network.target opentakserver.service
+Wants=opentakserver.service
+
+[Service]
+Type=simple
+User=opentakserver
+Group=opentakserver
+WorkingDirectory=/home/opentakserver
+
+# Set up Python environment
+Environment="PATH=/home/opentakserver/OpenTAKServer/opentakserver_venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="FLASK_APP=cuzk_tile_server"
+Environment="PYTHONUNBUFFERED=1"
+
+# Run the tile server
+ExecStart=/home/opentakserver/OpenTAKServer/opentakserver_venv/bin/python /home/opentakserver/cuzk_tile_server.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cuzk-tile-server
+
+[Install]
+WantedBy=multi-user.target

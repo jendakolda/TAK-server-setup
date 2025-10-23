@@ -57,6 +57,7 @@ ufw allow 8443/tcp
 ufw allow 8446/tcp
 ufw allow 8554/tcp
 ufw allow 8000:8010/udp
+ufw allow 8088/tcp
 
 # Create opentakserver user
 echo "Creating opentakserver user..."
@@ -169,6 +170,18 @@ server {
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
+    }
+
+    # CUZK Tile Server proxy (Czech maps for ATAK)
+    location /tiles/ {
+        proxy_pass http://127.0.0.1:8088/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
     }
 }
 
@@ -353,6 +366,201 @@ systemctl start eud_handler_ssl
 # Wait for SSL handler to stabilize
 sleep 5
 
+# Create CoT Parser systemd service (CRITICAL - Required for markers to appear on map!)
+echo "Creating CoT Parser service..."
+cat > /etc/systemd/system/cot_parser.service << 'EOF'
+[Unit]
+Description=OpenTAK Server CoT Parser
+After=network.target rabbitmq-server.service opentakserver.service
+Requires=rabbitmq-server.service opentakserver.service
+
+[Service]
+Type=simple
+User=opentakserver
+Group=opentakserver
+WorkingDirectory=/home/opentakserver/OpenTAKServer
+Environment="PATH=/home/opentakserver/OpenTAKServer/opentakserver_venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/opentakserver/OpenTAKServer/opentakserver_venv/bin/python /home/opentakserver/OpenTAKServer/opentakserver/cot_parser/cot_parser.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start CoT Parser
+systemctl daemon-reload
+systemctl enable cot_parser
+systemctl start cot_parser
+
+# Wait for CoT parser to stabilize
+sleep 5
+
+# Install CUZK Tile Server for on-demand Czech map downloads
+echo "Installing CUZK Tile Server..."
+sudo -u opentakserver bash -c "cd /home/opentakserver/OpenTAKServer && source opentakserver_venv/bin/activate && pip install flask mercantile pillow"
+
+# Create the tile server script
+cat > /home/opentakserver/cuzk_tile_server.py << 'TILEEOF'
+#!/usr/bin/env python3
+"""
+CUZK Tile Server Adapter for ATAK
+Translates XYZ tile requests into ArcGIS REST API calls to Czech CUZK services.
+"""
+
+from flask import Flask, Response, abort
+import requests
+import mercantile
+import hashlib
+import time
+from pathlib import Path
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+
+CUZK_BASE_URL = "https://ags.cuzk.gov.cz/arcgis/rest/services"
+CACHE_DIR = "/home/opentakserver/ots/tile_cache"
+CACHE_ENABLED = True
+TILE_SIZE = 256
+
+AVAILABLE_SERVICES = {
+    'topo': 'ZABAGED_POLOHOPIS',
+    'contours': 'ZABAGED_VRSTEVNICE',
+    'ortophoto': 'ortofoto/ortofoto',
+    'zmvm': 'ZMVM/zmvm',
+}
+
+class TileCache:
+    def __init__(self, cache_dir):
+        self.cache_dir = Path(cache_dir)
+        if CACHE_ENABLED:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def get_cache_path(self, service, z, x, y):
+        tile_id = f"{service}/{z}/{x}/{y}"
+        hash_dir = hashlib.md5(tile_id.encode()).hexdigest()[:2]
+        cache_path = self.cache_dir / service / str(z) / hash_dir
+        cache_path.mkdir(parents=True, exist_ok=True)
+        return cache_path / f"{x}_{y}.png"
+
+    def get(self, service, z, x, y):
+        if not CACHE_ENABLED:
+            return None
+        cache_file = self.get_cache_path(service, z, x, y)
+        if cache_file.exists():
+            age_days = (time.time() - cache_file.stat().st_mtime) / 86400
+            if age_days < 30:
+                return cache_file.read_bytes()
+            else:
+                cache_file.unlink()
+        return None
+
+    def set(self, service, z, x, y, data):
+        if not CACHE_ENABLED or not data:
+            return
+        try:
+            cache_file = self.get_cache_path(service, z, x, y)
+            cache_file.write_bytes(data)
+        except Exception as e:
+            logger.error(f"Failed to cache tile: {e}")
+
+tile_cache = TileCache(CACHE_DIR)
+
+def download_arcgis_tile(service_path, x, y, z):
+    bbox = mercantile.bounds(x, y, z)
+    url = (f"{CUZK_BASE_URL}/{service_path}/MapServer/export?"
+           f"bbox={bbox.west},{bbox.south},{bbox.east},{bbox.north}&"
+           f"bboxSR=4326&imageSR=3857&size={TILE_SIZE},{TILE_SIZE}&"
+           f"format=png&transparent=true&f=image")
+    try:
+        response = requests.get(url, timeout=30, headers={'User-Agent': 'ATAK-CUZK-Tile-Server/1.0'})
+        if response.status_code == 200 and 'image' in response.headers.get('Content-Type', ''):
+            return response.content
+    except Exception as e:
+        logger.error(f"Download failed: {e}")
+    return None
+
+@app.route('/health')
+def health_check():
+    return {'status': 'ok', 'service': 'CUZK Tile Server'}
+
+@app.route('/services')
+def list_services():
+    return {'services': AVAILABLE_SERVICES, 'usage': '/{service}/{z}/{x}/{y}.png'}
+
+@app.route('/<service>/<int:z>/<int:x>/<int:y>.png')
+def get_tile(service, z, x, y):
+    if service not in AVAILABLE_SERVICES:
+        abort(404)
+    if z < 0 or z > 20:
+        abort(400)
+
+    cached_tile = tile_cache.get(service, z, x, y)
+    if cached_tile:
+        return Response(cached_tile, mimetype='image/png')
+
+    tile_data = download_arcgis_tile(AVAILABLE_SERVICES[service], x, y, z)
+    if tile_data:
+        tile_cache.set(service, z, x, y, tile_data)
+        return Response(tile_data, mimetype='image/png')
+    abort(404)
+
+@app.route('/')
+def index():
+    return """<h1>CUZK Tile Server for ATAK</h1>
+    <p>Available services: topo, contours, ortophoto, zmvm</p>
+    <p>Usage: /{service}/{z}/{x}/{y}.png</p>"""
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8088, debug=False)
+TILEEOF
+
+chown opentakserver:opentakserver /home/opentakserver/cuzk_tile_server.py
+chmod +x /home/opentakserver/cuzk_tile_server.py
+
+# Create tile cache directory
+mkdir -p /home/opentakserver/ots/tile_cache
+chown -R opentakserver:opentakserver /home/opentakserver/ots/tile_cache
+
+# Create CUZK Tile Server systemd service
+echo "Creating CUZK Tile Server service..."
+cat > /etc/systemd/system/cuzk_tile_server.service << 'EOF'
+[Unit]
+Description=CUZK Tile Server for ATAK
+After=network.target opentakserver.service
+Wants=opentakserver.service
+
+[Service]
+Type=simple
+User=opentakserver
+Group=opentakserver
+WorkingDirectory=/home/opentakserver
+Environment="PATH=/home/opentakserver/OpenTAKServer/opentakserver_venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/home/opentakserver/OpenTAKServer/opentakserver_venv/bin/python /home/opentakserver/cuzk_tile_server.py
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cuzk-tile-server
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start CUZK Tile Server
+systemctl daemon-reload
+systemctl enable cuzk_tile_server
+systemctl start cuzk_tile_server
+
+# Wait for tile server to stabilize
+sleep 3
+
 # Create status file
 PUBLIC_IP=$(curl -s http://169.254.169.254/opc/v1/instance/metadata/public-ip 2>/dev/null || echo 'YOUR_PUBLIC_IP')
 
@@ -384,10 +592,18 @@ For SSL (secure, with certificates):
 - Truststore Password: atakatak
 - Or use QR Code from Web UI for automatic setup
 
+Czech Map Integration:
+- CUZK Tile Server: http://${PUBLIC_IP}:8088/
+- Available maps: topo, contours, ortophoto, zmvm
+- Health check: http://${PUBLIC_IP}:8088/health
+- ATAK XML configs: See CUZK_TILE_SERVER_GUIDE.md
+
 Service Status:
 - Backend: systemctl status opentakserver
 - TCP Streaming: systemctl status eud_handler
 - SSL Streaming: systemctl status eud_handler_ssl
+- CoT Parser: systemctl status cot_parser
+- CUZK Tile Server: systemctl status cuzk_tile_server
 - Nginx: systemctl status nginx
 
 Logs:
@@ -395,6 +611,8 @@ Logs:
 - OpenTAK: journalctl -u opentakserver -f
 - TCP EUD Handler: journalctl -u eud_handler -f
 - SSL EUD Handler: journalctl -u eud_handler_ssl -f
+- CoT Parser: journalctl -u cot_parser -f
+- CUZK Tile Server: journalctl -u cuzk_tile_server -f
 - Nginx: /var/log/nginx/error.log
 EOF
 

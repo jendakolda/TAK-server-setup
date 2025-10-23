@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ATAK Map Source Configuration for Czech Contour Lines
+
+  This provides contour line overlays for elevation information.
+  Use this as an overlay layer on top of the base topographic map.
+
+  To use:
+  1. Replace YOUR_SERVER_IP with your actual server IP address
+  2. Copy this file to your Android device
+  3. In ATAK, go to Settings > Import > Import Map Source
+  4. Select this XML file
+  5. Enable as an overlay layer in the layers menu
+-->
+<customMapSource>
+    <name>Czech Contours</name>
+    <provider>ČÚZK (via OpenTAK Server)</provider>
+    <tileType>1</tileType>
+    <!-- Base URL - Uses Nginx proxy on port 80 -->
+    <url>http://YOUR_SERVER_IP/tiles/contours/{z}/{x}/{y}.png</url>
+    <backgroundColor>#00000000</backgroundColor>
+    <minZoom>8</minZoom>
+    <maxZoom>16</maxZoom>
+    <tileSize>256</tileSize>
+
+    <!-- Czech Republic bounding box -->
+    <north>51.06</north>
+    <south>48.55</south>
+    <east>18.86</east>
+    <west>12.09</west>
+
+    <!-- Coordinate system -->
+    <srid>4326</srid>
+
+    <!-- Cache settings -->
+    <offlineCache>true</offlineCache>
+    <cachePath>ATAK/cache/czech_contours</cachePath>
+
+    <!-- Overlay settings -->
+    <isOverlay>true</isOverlay>
+    <opacity>0.7</opacity>
+</customMapSource>

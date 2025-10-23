@@ -78,7 +78,7 @@ sudo systemctl reload nginx
 
 ## Files
 
-- **Full Guide**: `DEPLOYMENT_GUIDE.md`
+- **Full Guide**: See `docs/` folder for detailed guides
 - **Success Report**: `FINAL_SUCCESS.md`
 - **Terraform Config**: `terraform/`
 
@@ -88,4 +88,4 @@ sudo systemctl reload nginx
 
 ---
 
-**Need Help?** See `DEPLOYMENT_GUIDE.md` for detailed troubleshooting.
+**Need Help?** See troubleshooting sections in `docs/SSL_CONNECTION.md` or `docs/CUZK_TILE_SERVER.md`.
